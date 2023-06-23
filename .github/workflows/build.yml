@@ -1,0 +1,65 @@
+name: Main
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  buildntest:
+    runs-on: ubuntu-latest
+    container: node:latest
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: ad1e5e1a4ff10b947b84059270e0b1a9
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v3
+      -
+        name: Install dependencies
+        run: npm ci
+      -
+        name: Test
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:ad1e5e1a4ff10b947b84059270e0b1a9@postgres:5432/postgres
+          NODE_ENV: test
+          API_PORT: 3000
+          TOKEN_SECRET: b31106d4188fe4835761f8094e828f517b71610148111d08a275062b6899e649f713de857425e250790873fb7cae6d2dbf2793405446e8522a73b5060592f849
+          TOKEN_EXPIRATION: 1800s
+  
+  deploy:
+    runs-on: ubuntu-latest
+    needs: buildntest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v3
+      -
+        name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      -
+        name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/users-auth-api-boilerplate:latest
